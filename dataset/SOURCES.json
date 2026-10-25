@@ -1,0 +1,29 @@
+{
+  "ual": {
+    "source": "https://data.mendeley.com/datasets/37f8w8f7tm/1",
+    "doi": "10.17632/37f8w8f7tm.1",
+    "license": "CC BY 4.0",
+    "author": "Marcos Lupión Lorente",
+    "sha256": "e5c74fe66e0dceb0615f4914e2eb95e6b2f7dbe2340ca97ca22228ec19e4b492",
+    "rows": 79181,
+    "caveats": [
+      "Four volunteers simulating seizures; no clinical seizures",
+      "Sensor placement not confirmed",
+      "Units assumed g from scale; not documented in dataset description",
+      "Bursty timestamps; nominal sample-order reduction, no verified timing"
+    ]
+  },
+  "wisdm": {
+    "original": "https://doi.org/10.24432/C5HK59",
+    "author": "Gary M. Weiss / WISDM Lab, Fordham University",
+    "download": "https://www.kaggle.com/datasets/rabieelkharoua/human-activity-classification-dataset",
+    "license": "CC BY 4.0",
+    "archive_sha256": "dd3a0e6e27274ea5f809474b3da174867fb646a7101da0895a6044506d9d5a71",
+    "watch_files": 51,
+    "use": "Separate everyday-activity challenge and replay; excluded from training"
+  },
+  "original_eeg": {
+    "file": "EEG_Signal.csv",
+    "use": "Preserved unchanged, excluded from movement model"
+  }
+}

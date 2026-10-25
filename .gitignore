@@ -1,0 +1,15 @@
+.tools/
+**/build/
+**/.gradle/
+**/.idea/
+**/local.properties
+**/__pycache__/
+*.part
+
+# Downloaded WISDM data is reproduced with interface/tools/download_resources.py.
+/dataset/wisdm/*.zip
+/dataset/wisdm/watch_accel/
+
+# Distribute Android binaries through releases, rather than Git history.
+*.apk
+*.aab

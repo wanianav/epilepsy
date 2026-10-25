@@ -1,0 +1,166 @@
+{
+  "sensitivity": 1.0,
+  "specificity": 0.9591836734693877,
+  "f1": 0.95,
+  "balanced_accuracy": 0.9795918367346939,
+  "confusion_matrix": [
+    [
+      94,
+      4
+    ],
+    [
+      0,
+      38
+    ]
+  ],
+  "test_windows": 136,
+  "training_users": [
+    0,
+    1,
+    2
+  ],
+  "held_out_user": 3,
+  "training_windows": 228,
+  "source_rows": 79181,
+  "training_label_counts": [
+    153,
+    75
+  ],
+  "test_label_counts": [
+    98,
+    38
+  ],
+  "threshold_baseline": {
+    "magnitude_std_threshold": 0.33,
+    "sensitivity": 1.0,
+    "specificity": 0.8673469387755102,
+    "f1": 0.8539325842696629,
+    "balanced_accuracy": 0.9336734693877551,
+    "confusion_matrix": [
+      [
+        85,
+        13
+      ],
+      [
+        0,
+        38
+      ]
+    ],
+    "test_windows": 136
+  },
+  "leave_one_volunteer_out": [
+    {
+      "held_out_user": 0,
+      "sensitivity": 0.8333333333333334,
+      "specificity": 0.9736842105263158,
+      "f1": 0.8823529411764706,
+      "balanced_accuracy": 0.9035087719298246,
+      "confusion_matrix": [
+        [
+          74,
+          2
+        ],
+        [
+          6,
+          30
+        ]
+      ],
+      "test_windows": 112
+    },
+    {
+      "held_out_user": 1,
+      "sensitivity": 0.08695652173913043,
+      "specificity": 1.0,
+      "f1": 0.16,
+      "balanced_accuracy": 0.5434782608695652,
+      "confusion_matrix": [
+        [
+          50,
+          0
+        ],
+        [
+          21,
+          2
+        ]
+      ],
+      "test_windows": 73
+    },
+    {
+      "held_out_user": 2,
+      "sensitivity": 0.8125,
+      "specificity": 0.9629629629629629,
+      "f1": 0.8666666666666667,
+      "balanced_accuracy": 0.8877314814814814,
+      "confusion_matrix": [
+        [
+          26,
+          1
+        ],
+        [
+          3,
+          13
+        ]
+      ],
+      "test_windows": 43
+    },
+    {
+      "held_out_user": 3,
+      "sensitivity": 1.0,
+      "specificity": 0.9591836734693877,
+      "f1": 0.95,
+      "balanced_accuracy": 0.9795918367346939,
+      "confusion_matrix": [
+        [
+          94,
+          4
+        ],
+        [
+          0,
+          38
+        ]
+      ],
+      "test_windows": 136
+    }
+  ],
+  "wisdm_challenge": {
+    "windows": 94771,
+    "above_threshold": 7672,
+    "positive_window_rate": 0.08095303415601819,
+    "activity_windows": {
+      "A": 5390,
+      "B": 5228,
+      "C": 5266,
+      "D": 5409,
+      "E": 5472,
+      "F": 5122,
+      "G": 5212,
+      "H": 5229,
+      "I": 5245,
+      "J": 5071,
+      "K": 5389,
+      "L": 5085,
+      "M": 5230,
+      "O": 5245,
+      "P": 5312,
+      "Q": 5377,
+      "R": 5212,
+      "S": 5277
+    },
+    "dropped_invalid_rows": 1,
+    "interpretation": "External negative-only challenge. Window-positive rate is not a clinical false-alarms-per-day estimate."
+  },
+  "feature_importance": {
+    "magnitude_mean": 0.019256521399488434,
+    "magnitude_std": 0.22925102818913828,
+    "magnitude_range": 0.08814378836016865,
+    "magnitude_rms": 0.03189150314824653,
+    "difference_mean": 0.22440928946872551,
+    "difference_std": 0.10067102392587077,
+    "difference_max": 0.04415911943145732,
+    "axis_std_mean": 0.04324333567212992,
+    "axis_range_mean": 0.07282547900121826,
+    "axis_rms_mean": 0.03611220318723649,
+    "magnitude_center_crossings": 0.03721899370664261,
+    "lag1_correlation": 0.07281771450967722
+  }
+}

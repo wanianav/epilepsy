@@ -1,0 +1,19 @@
+[
+  {
+    "filename": "epilepsy_dataset.csv",
+    "id": "99f6aaea-ea70-4561-9e39-965fb7eb4e3c",
+    "content_details": {
+      "id": "b972cb8b-36ce-4ef8-9eeb-d43780558405",
+      "sha256_hash": "e5c74fe66e0dceb0615f4914e2eb95e6b2f7dbe2340ca97ca22228ec19e4b492",
+      "content_type": "text/csv",
+      "size": 3998934,
+      "created_date": "2022-06-17T06:27:12.56Z",
+      "download_url": "https://data.mendeley.com/public-files/datasets/37f8w8f7tm/files/99f6aaea-ea70-4561-9e39-965fb7eb4e3c/file_downloaded",
+      "view_url": "https://data.mendeley.com/public-files/datasets/37f8w8f7tm/files/99f6aaea-ea70-4561-9e39-965fb7eb4e3c/file_viewed",
+      "download_expiry_time": "2126-10-24T18:42:59.588021092Z"
+    },
+    "size": 3998934,
+    "last_modified_date": "2022-06-17T06:27:12.56Z",
+    "status": "COMPLETED"
+  }
+]
