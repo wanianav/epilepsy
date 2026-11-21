@@ -1,6 +1,7 @@
 .tools/
 **/build/
 **/.gradle/
+/interface/.kotlin/
 **/.idea/
 **/local.properties
 **/__pycache__/

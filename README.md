@@ -1,8 +1,8 @@
-# CalmGuard epilepsy research prototype
+# CalmGuard for Android
 
-Kotlin and Jetpack Compose Android prototype for exploring in-app accessibility
-controls, sample-based movement classification, local test alerts and optional
-device display dimming. It is a research demonstration, not a clinical seizure detector.
+CalmGuard is a Kotlin and Jetpack Compose app with live phone-motion check-ins,
+optional caregiver SMS, display controls and local event history. Motion check-ins
+flag repeated phone shaking. The app has no clinical validation for seizure detection.
 
 ## Android app
 
@@ -10,8 +10,10 @@ Open the [interface](interface/) directory in Android Studio. See
 [setup and features](interface/README.md), [verification results](interface/VERIFICATION.md)
 and [model details](interface/model/README.md).
 
-The app includes a small exported Random Forest and prerecorded sample clips, so
-it runs offline without downloading the full training datasets or connecting a wristband.
+The research screens include an offline Random Forest and prerecorded samples.
+Phone-motion check-ins use the Android accelerometer. No training dataset
+download or wristband is required to run the app. Automatic texts use the
+phone's configured SMS SIM.
 
 ## Datasets
 

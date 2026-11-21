@@ -1,20 +1,24 @@
 package com.calmguard.app
 
+import android.Manifest
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import android.view.inspector.WindowInspector
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.core.app.ApplicationProvider
-import org.junit.Before
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowSensor
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
@@ -36,6 +40,18 @@ class AppUiTest {
             output.parentFile!!.mkdirs()
             output.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
+    }
+
+    @Test fun openingTheAppStartsEnabledMotionMonitoring() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        compose.runOnIdle {
+            shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+            shadowOf(app.getSystemService(SensorManager::class.java))
+                .addSensor(ShadowSensor.newInstance(Sensor.TYPE_ACCELEROMETER))
+        }
+        compose.activityRule.scenario.recreate()
+        compose.waitForIdle()
+        assertEquals(LiveMotionService.START, shadowOf(app).nextStartedService?.action)
     }
 
     @Test fun navigationSampleAnalysisAndLocalAlertWork() {
@@ -64,5 +80,18 @@ class AppUiTest {
         compose.onNodeWithContentDescription("Research details").performClick()
         compose.onNodeWithText("Know the data.\nKnow the limits.").assertIsDisplayed()
         shot("06-research")
+    }
+
+    @Test fun caregiverSetupSavesANumberWithoutTurningOnAutomaticTexts() {
+        compose.onNodeWithText("Phone motion").assertIsDisplayed()
+        compose.onNodeWithText("Caregiver settings").performScrollTo().performClick()
+        val firstNumber = compose.onNodeWithText("Caregiver 1 phone number")
+        firstNumber.performScrollTo().performTextInput("+1 202 555 0101")
+        compose.onNodeWithText("Save caregiver numbers").performScrollTo().performClick()
+        compose.onNodeWithText("+12025550101").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Automatic texting off").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Text first caregiver now").performScrollTo().assertIsEnabled()
+        compose.onNodeWithText("Caregiver numbers").performScrollTo()
+        shot("08-caregiver-settings")
     }
 }

@@ -4,14 +4,17 @@ import android.os.Bundle
 import android.Manifest
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -27,6 +31,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -48,6 +54,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import java.util.Locale
 import kotlin.math.sqrt
 
@@ -60,9 +67,34 @@ private val Line = Color(0xFFDAE4DB)
 private val Amber = Color(0xFF895A13)
 
 class MainActivity : ComponentActivity() {
+    private val state: PrototypeState by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { CalmGuardApp() }
+        openMotionIfRequested(intent)
+        setContent { CalmGuardApp(state) }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        state.liveMotion.startIfReady()?.let { state.notice = it }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        openMotionIfRequested(intent)
+    }
+
+    private fun openMotionIfRequested(intent: Intent) {
+        if (intent.action == OPEN_MOTION) {
+            state.page = 0
+            state.research = false
+        }
+    }
+
+    internal companion object {
+        const val OPEN_MOTION = "com.calmguard.app.OPEN_PHONE_MOTION"
     }
 }
 
@@ -76,6 +108,7 @@ fun CalmGuardApp(state: PrototypeState = viewModel()) {
         val snack = remember { SnackbarHostState() }
         val context = LocalContext.current
         val lifecycle = LocalLifecycleOwner.current.lifecycle
+        val motion by LiveMotionService.status.collectAsStateWithLifecycle()
         DisposableEffect(lifecycle) {
             val observer = LifecycleEventObserver { _, event -> if(event == Lifecycle.Event.ON_STOP) state.pause() }
             lifecycle.addObserver(observer)
@@ -112,7 +145,7 @@ fun CalmGuardApp(state: PrototypeState = viewModel()) {
                     key(state.page, state.research) {
                         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 22.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                             if (state.research) ResearchScreen(state) else when(state.page) {
-                                0 -> OverviewScreen(state)
+                                0 -> OverviewScreen(state, motion)
                                 1 -> SafeScreen(state)
                                 2 -> SamplesScreen(state)
                                 else -> HistoryScreen(state) { export.launch("calmguard-events.csv") }
@@ -122,7 +155,9 @@ fun CalmGuardApp(state: PrototypeState = viewModel()) {
                 }
             }
         }
-        if (state.alert != AlertStage.IDLE) TestAlertDialog(state)
+        val checkIn = motion.checkIn
+        if (checkIn != null) MovementCheckInDialog(checkIn) { state.liveMotion.acknowledge(checkIn.id) }
+        else if (state.alert != AlertStage.IDLE) TestAlertDialog(state)
     }
 }
 
@@ -173,9 +208,9 @@ private fun SectionTitle(title: String, action: String? = null, onClick: () -> U
 }
 
 @Composable
-private fun OverviewScreen(state: PrototypeState) {
-    Label("Your research companion")
-    Title("A calmer\ndigital day.", "Explore a gentler interface and movement alerts, at your own pace.")
+private fun OverviewScreen(state: PrototypeState, motion: LiveMotionStatus) {
+    Title("A calmer\ndigital day.", "Set up phone movement check-ins and manage your display.")
+    LiveMotionControls(state, motion)
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(25.dp)).background(Brush.linearGradient(listOf(Color(0xFF1B6252), Color(0xFF254D43)))).padding(22.dp), verticalArrangement = Arrangement.spacedBy(17.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Shield, null, tint = Color(0xFFC4E7B3), modifier = Modifier.size(29.dp))
@@ -216,7 +251,170 @@ private fun OverviewScreen(state: PrototypeState) {
         }
         OutlinedButton(onClick = { state.startAlert() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Start test alert") }
     }
-    PrototypeNote()
+}
+
+@Composable
+private fun LiveMotionControls(state: PrototypeState, motion: LiveMotionStatus) {
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val controller = state.liveMotion
+    val texts = state.caregiverTexts
+    var revision by remember { mutableIntStateOf(0) }
+    var showCaregivers by rememberSaveable { mutableStateOf(false) }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) revision++ }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    val canNotify = remember(revision) { controller.notificationsAllowed() }
+    val needsNotificationPermission = remember(revision) {
+        Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+    }
+    val sensor = remember(revision) { controller.accelerometer() }
+    val textSettings = remember(revision) { texts.settings() }
+    val smsProblem = remember(revision) { texts.automaticProblem(textSettings) }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        revision++
+        state.notice = if (it) controller.startIfReady()
+            else "Allow notifications in Android settings to use phone movement check-ins."
+    }
+    val smsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        state.notice = if (granted) texts.setAutomatic(true) else "Automatic texting needs SMS permission."
+        revision++
+    }
+    fun openNotificationSettings() {
+        runCatching { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }
+            .onFailure { state.notice = "Open CalmGuard notification settings from Android Settings." }
+    }
+    Panel(tint = Pale) {
+        SectionTitle("Phone motion")
+        Pill(when {
+            motion.running && motion.receiving -> "LISTENING"
+            motion.running -> "WAITING FOR READINGS"
+            else -> "OFF"
+        })
+        Text("Phone motion starts automatically when enabled. Strong, repeated shaking starts a 20-second check-in.",
+            color = Ink, fontSize = 13.sp, lineHeight = 20.sp)
+        Text("The phone must move with you. Everyday movement can trigger an alert, and seizures can be missed.",
+            color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        if (sensor == null) {
+            Text("No accelerometer is available on this phone.", color = Amber, fontSize = 12.sp)
+        } else if (!sensor.isWakeUpSensor) {
+            Text("Screen-off monitoring can use more battery on this phone.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        }
+        if (motion.running) {
+            Button(onClick = { controller.stop() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+                Text("Stop phone motion")
+            }
+        } else if (sensor != null && !canNotify) {
+            OutlinedButton(onClick = {
+                if (needsNotificationPermission) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                else openNotificationSettings()
+            }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+                Text(if (needsNotificationPermission) "Allow motion notifications" else "Open motion notification settings")
+            }
+            if (needsNotificationPermission) TextButton(onClick = ::openNotificationSettings) {
+                Text("Open motion notification settings")
+            }
+        } else {
+            Button(onClick = { state.notice = controller.start() }, enabled = sensor != null,
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) { Text("Start phone motion") }
+        }
+        motion.message?.let { Text(it, color = Ink, fontSize = 12.sp, lineHeight = 18.sp) }
+        HorizontalDivider(color = Line)
+        Text(if (textSettings.automatic && smsProblem == null) {
+            "Automatic texting on · ${textSettings.numbers.size} ${if (textSettings.numbers.size == 1) "contact" else "contacts"}"
+        } else if (textSettings.automatic) "Automatic texting unavailable" else "Automatic texting off",
+            color = Ink, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+        if (textSettings.automatic && smsProblem != null) Text(smsProblem, color = Amber, fontSize = 12.sp)
+        OutlinedButton(onClick = { showCaregivers = !showCaregivers },
+            modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+            Text(if (showCaregivers) "Close caregiver settings" else "Caregiver settings")
+        }
+        textSettings.numbers.firstOrNull()?.let { number ->
+            TextButton(onClick = {
+                runCatching { context.startActivity(texts.compose(number)) }
+                    .onFailure { state.notice = "A text messaging app is unavailable on this phone." }
+            }) { Text("Text first caregiver now") }
+        }
+    }
+    if (showCaregivers) {
+        CaregiverSettings(textSettings, texts, onSaved = { revision++ }, changeAutomatic = { enabled ->
+            if (enabled && !texts.permissionGranted()) smsPermission.launch(Manifest.permission.SEND_SMS)
+            else {
+                state.notice = texts.setAutomatic(enabled)
+                revision++
+            }
+        }, onError = { state.notice = it })
+    }
+}
+
+@Composable
+private fun CaregiverSettings(
+    settings: TextSettings,
+    texts: CaregiverTexts,
+    onSaved: () -> Unit,
+    changeAutomatic: (Boolean) -> Unit,
+    onError: (String) -> Unit
+) {
+    val saved = List(CaregiverTexts.MAX_CONTACTS) { settings.numbers.getOrElse(it) { "" } }
+    var entries by rememberSaveable(saved) { mutableStateOf(ArrayList(saved)) }
+    Panel {
+        SectionTitle("Caregiver numbers")
+        Text("Save up to three people who have agreed to receive movement check-ins. Numbers are stored on this phone.",
+            color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
+        entries.forEachIndexed { index, number ->
+            OutlinedTextField(value = number, onValueChange = { next ->
+                entries = ArrayList(entries).apply { this[index] = next.take(32) }
+            }, label = { Text("Caregiver ${index + 1} phone number") }, modifier = Modifier.fillMaxWidth(),
+                singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
+        }
+        val unsaved = entries != saved
+        OutlinedButton(onClick = {
+            val error = texts.saveNumbers(entries)
+            if (error != null) onError(error)
+            else {
+                val updated = texts.settings()
+                entries = ArrayList(List(CaregiverTexts.MAX_CONTACTS) { updated.numbers.getOrElse(it) { "" } })
+                onSaved()
+            }
+        }, enabled = unsaved, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+            Text("Save caregiver numbers")
+        }
+        SettingRow(Icons.Outlined.NotificationsNone, "Automatic caregiver texts",
+            "After an unanswered check-in, send one SMS to each saved number. The text asks them to call you.",
+            settings.automatic, enabled = settings.automatic || (settings.numbers.isNotEmpty() && !unsaved),
+            onChecked = changeAutomatic)
+        Text("Changing a number turns automatic texting off. Sending needs a default SMS SIM and mobile service.",
+            color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+    }
+}
+
+@Composable
+private fun MovementCheckInDialog(checkIn: MotionCheckIn, acknowledge: () -> Unit) {
+    val seconds by produceState(initialValue = 20L, checkIn.id) {
+        do {
+            value = ((checkIn.deadline - SystemClock.elapsedRealtime() + 999L) / 1_000L).coerceIn(0L, 20L)
+            if (value > 0) delay(250)
+        } while (value > 0)
+    }
+    AlertDialog(
+        onDismissRequest = {},
+        icon = { Icon(Icons.Outlined.NotificationsNone, null, tint = Green) },
+        title = { Text("Strong phone movement detected", fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("$seconds seconds", color = Green, fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
+                Text(if (checkIn.willText) "Tap I'm OK to cancel. If there's no response, CalmGuard will try to text your caregivers."
+                    else "Tap I'm OK to close the check-in. Automatic caregiver texting is off or unavailable.",
+                    color = Muted, fontSize = 14.sp, lineHeight = 21.sp)
+            }
+        },
+        confirmButton = { Button(onClick = acknowledge) { Text("I'm OK") } },
+        containerColor = Background, shape = RoundedCornerShape(26.dp)
+    )
 }
 
 @Composable
@@ -224,7 +422,7 @@ private fun PrototypeNote() {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Icon(Icons.Outlined.Science, null, tint = Muted, modifier = Modifier.size(17.dp))
         Spacer(Modifier.width(8.dp))
-        Text("Research prototype using sample data. No wristband is connected. This app does not provide medical monitoring.", color = Muted, fontSize = 11.sp, lineHeight = 17.sp)
+        Text("The sample model uses volunteer simulations. Phone movement check-ins are based on the phone's accelerometer. Clinical seizure detection requires separate validation.", color = Muted, fontSize = 11.sp, lineHeight = 17.sp)
     }
 }
 
@@ -445,8 +643,7 @@ private fun WaveChart(points: List<MotionPoint>, modifier: Modifier, showLabels:
 private fun HistoryScreen(state: PrototypeState, export: () -> Unit) {
     var filter by remember { mutableStateOf("All") }
     var confirmClear by remember { mutableStateOf(false) }
-    Label("Your local research log")
-    Title("Every action,\na little clearer.", "Review content controls, sample analysis and test alerts. History stays on this device.")
+    Title("Event history", "Review movement check-ins, caregiver text status, display controls and sample tests on this phone.")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
         listOf("All", "Visual", "Movement", "Alerts").forEach { value -> FilterChip(filter == value, { filter = value }, label = { Text(value) }) }
     }
@@ -458,7 +655,7 @@ private fun HistoryScreen(state: PrototypeState, export: () -> Unit) {
     if(visible.isEmpty()) Panel {
         Icon(Icons.Outlined.History, null, tint = Green, modifier = Modifier.size(32.dp))
         Text("A fresh start", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-        Text("Try a Safe Mode control, analyse a sample or start a test alert. Your events will appear here.", color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
+        Text("Movement check-ins, sample tests and display changes will appear here.", color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
     }
     visible.forEach { entry -> Panel {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -478,7 +675,7 @@ private fun ResearchScreen(state: PrototypeState) {
     val report = state.model.report
     var name by remember { mutableStateOf(state.caregiver) }
     Label("The research behind the demo")
-    Title("Know the data.\nKnow the limits.", "This prototype explores accessibility controls and classification of recorded movement.")
+    Title("Know the data.\nKnow the limits.", "The research demo explores accessibility controls and classification of recorded movement.")
     Panel {
         Pill("UAL · VOLUNTEER SIMULATIONS")
         Text("Movement classification", fontSize = 19.sp, fontWeight = FontWeight.SemiBold)

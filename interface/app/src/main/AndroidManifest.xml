@@ -5,6 +5,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <application
         android:allowBackup="false"
         android:label="CalmGuard"
@@ -22,5 +27,17 @@
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User-enabled, touch-through display dimming over other applications, with a persistent stop notification. No screen capture or content inspection." />
         </service>
+        <service android:name=".LiveMotionService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Continuous phone accelerometer monitoring for on-device movement check-ins, with a persistent stop control and optional caregiver SMS." />
+        </service>
+        <receiver android:name=".LiveMotionStartupReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <receiver android:name=".CaregiverTextResult" android:exported="false" />
     </application>
 </manifest>

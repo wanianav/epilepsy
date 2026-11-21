@@ -1,26 +1,27 @@
 package com.calmguard.app
 
 import android.app.Application
+import android.content.SharedPreferences
 import androidx.compose.runtime.*
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class EventEntry(val time: Long, val title: String, val detail: String, val kind: String)
 data class SafePreferences(val enabled: Boolean = true, val manualMedia: Boolean = true,
     val reducedMotion: Boolean = true, val holdUpdates: Boolean = true)
 enum class AlertStage { IDLE, COUNTDOWN, COMPLETE }
 
 class PrototypeState(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("calmguard", 0)
+    private val history = EventHistory(application)
     val deviceDisplay = DeviceDisplayController(application)
+    internal val liveMotion = LiveMotionController(application)
+    internal val caregiverTexts = CaregiverTexts(application)
     val model = MotionModel(application)
     val clips = loadClips(application)
     var page by mutableIntStateOf(0)
@@ -45,6 +46,9 @@ class PrototypeState(application: Application) : AndroidViewModel(application) {
         private set
     var notice by mutableStateOf<String?>(null)
     val events = mutableStateListOf<EventEntry>()
+    private val historyListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == EventHistory.KEY || key == null) readHistory()
+    }
     private var replay: Job? = null
     private var countdown: Job? = null
     private var consecutive = 0
@@ -52,12 +56,9 @@ class PrototypeState(application: Application) : AndroidViewModel(application) {
     val chartPoints get() = clip.windows.getOrNull(windowIndex) ?: emptyList()
 
     init {
-        runCatching {
-            val list = JSONArray(prefs.getString("events", "[]"))
-            for (i in 0 until list.length()) list.getJSONObject(i).let {
-                events.add(EventEntry(it.getLong("time"), it.getString("title"), it.getString("detail"), it.getString("kind")))
-            }
-        }
+        readHistory()
+        prefs.registerOnSharedPreferenceChangeListener(historyListener)
+        liveMotion.recoverInterrupted()
         // A process restart cancels a local test countdown; it never escalates an alert.
         if (prefs.getBoolean("pendingTest", false)) {
             log("Test interrupted", "The app closed during a local countdown. No messages were sent.", "alert")
@@ -143,14 +144,17 @@ class PrototypeState(application: Application) : AndroidViewModel(application) {
         log("Test alert completed", "Local demonstration for $caregiver. No SMS, location or notifications were sent.", "alert")
     }
     fun dismissAlert() { alert = AlertStage.IDLE; consecutive = 0 }
-    fun log(title: String, detail: String, kind: String) {
-        events.add(0, EventEntry(System.currentTimeMillis(), title, detail, kind))
-        while(events.size > 200) events.removeAt(events.lastIndex)
-        val array = JSONArray()
-        events.forEach { array.put(JSONObject().put("time", it.time).put("title", it.title).put("detail", it.detail).put("kind", it.kind)) }
-        prefs.edit().putString("events", array.toString()).apply()
+    private fun readHistory() {
+        val updated = history.read()
+        events.clear()
+        events.addAll(updated)
     }
-    fun clearHistory() { events.clear(); prefs.edit().remove("events").apply() }
+    override fun onCleared() {
+        prefs.unregisterOnSharedPreferenceChangeListener(historyListener)
+        super.onCleared()
+    }
+    fun log(title: String, detail: String, kind: String) = history.add(title, detail, kind)
+    fun clearHistory() = history.clear()
     fun exportCsv(): String {
         fun field(s: String) = "\"${s.replace("\"", "\"\"")}\""
         return "timestamp,title,detail,category\r\n" + events.joinToString("\r\n") {
